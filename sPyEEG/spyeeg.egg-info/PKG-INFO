@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: spyeeg
+Version: 0.0.1
+Summary: Package for modelling EEG responses to speech.
+Author: Pierre Guilleminot & Mikolaj Kegler
+License: MIT
+Dynamic: author
+Dynamic: license
+Dynamic: summary
