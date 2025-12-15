@@ -8,7 +8,7 @@ import h5py
 from mne_icalabel import label_components
 import sys
 sys.path.append("..")
-from utils import trf_helper, find_start_distractor
+from utils import trf_helper, find_start_distractor, preprocess_eeg_array
 from tqdm import tqdm
 
 
@@ -25,7 +25,13 @@ trials = list(range(9,21))
 
 tmin = -0.3
 tmax = 0.8
-sfreq = 128
+sfreq_in = 128
+sfreq = 64
+
+downsample_factor = sfreq_in/sfreq
+
+corner_freq = [1,8] # Hz
+
 alpha = np.logspace(-7, 7, 15)
 null_model = False
 
@@ -52,6 +58,8 @@ with h5py.File(hdf5_path, 'r') as f:
             env_attended = f[env_attended_path][:]
             eeg = f[eeg_path][:]
             eeg = eeg[:31,:]
+            # Preprocess EEG
+            
 
             env_distractor_path =  f'stimulus_files/{stim_code}/distractor_env'
             env_distractor = f[env_distractor_path][:]
@@ -60,11 +68,20 @@ with h5py.File(hdf5_path, 'r') as f:
             start_env_distractor = find_start_distractor(env_distractor)
             env_attended = env_attended[start_env_distractor:]
             env_distractor = env_distractor[start_env_distractor:]
+
+            # Preprocess and downsample EEG and stimulus
             eeg = eeg[:,start_env_distractor:]
 
+            # envelope is already filtered in dataset
+            env_attended = mne.filter.resample(env_attended, down = downsample_factor)
+            env_distractor = mne.filter.resample(env_distractor, down = downsample_factor)
+            eeg = preprocess_eeg_array(eeg, sfreq_in, sfreq, corner_freq[0], corner_freq[1])
+
+            # TRF estimation
             coefs_attended, scores_attended = trf_helper(env_distractor, eeg, tmin=tmin, tmax=tmax, Fs=sfreq, alpha=alpha, null_model=null_model, get_scores=True)
             coefs_distractor, scores_distractor = trf_helper(env_distractor, eeg, tmin=tmin, tmax=tmax, Fs=sfreq, alpha=alpha, null_model=null_model, get_scores=True)
 
+            # Store coefficients and scores
             coefs_subj_attended.append(coefs_attended)
             coefs_subj_distractor.append(coefs_distractor)
 

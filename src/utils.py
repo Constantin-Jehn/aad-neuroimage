@@ -3,8 +3,39 @@ import numpy as np
 from scipy.stats import zscore
 from scipy.ndimage import binary_erosion
 from spyeeg.models.TRF import TRFEstimator
+import mne
 
-def prepare_training_data(subject, train_indices, val_indices, test_indices, hdf5_path):
+def preprocess_eeg_array(eeg, fs_in, fs_output, corner_freq_l, corner_freq_h):
+    if corner_freq_h is not None:
+        eeg = mne.filter.filter_data(eeg, fs_in, l_freq=corner_freq_l, h_freq=None)
+    if fs_output != fs_in:
+        down = fs_in/fs_output
+        eeg = mne.filter.resample(eeg, down = down, axis=1)
+    if corner_freq_l is not None:
+        eeg = mne.filter.filter_data(eeg, sfreq = fs_output, l_freq = None, h_freq = corner_freq_h)
+    return eeg
+
+def concatenate_eeg(f, subject, trials, fs_in=1000, fs_output=128, corner_freq = [1,8]):
+    eeg_data = []
+    for j in trials:
+        eeg_part = f[f'eeg/{subject}/{j}'][:]
+        eeg_part = preprocess_eeg_array(eeg_part, fs_in, fs_output, corner_freq[0], corner_freq[1])
+        eeg_data.append(zscore(eeg_part, axis = 1))
+    eeg_data = np.hstack(eeg_data)
+    return eeg_data
+
+def concatenate_stimulus(f, stimuli, fs_in=1000, fs_output=128, feature_name='attended_env'):
+    stim_data = []
+    for j in stimuli:
+        stim_part = f[f'stimulus_files/{str(j)}/{feature_name}'][:]
+        if fs_output != fs_in:
+            down = fs_in/fs_output
+            stim_part = mne.filter.resample(stim_part, down = down)
+        stim_data.append(zscore(stim_part))
+    stim_data = np.hstack(stim_data)
+    return stim_data
+
+def prepare_training_data(subject, train_indices, val_indices, test_indices, hdf5_path, fs_in=1000, fs_output=128, corner_freq = [1,8]):
     """
     Returns data matrix, label etc. for regression model training
     Can be used for Cross-Validation with appropriate validaten and test indices
@@ -38,17 +69,19 @@ def prepare_training_data(subject, train_indices, val_indices, test_indices, hdf
         val_stimuli = attended_stimuli[val_indices]
         test_stimuli = attended_stimuli[test_indices]
 
-        X_train = np.hstack([zscore(f[f'eeg/{subject}/{j}'][:], axis = 1) for j in train_parts])
-        X_val = np.hstack([zscore(f[f'eeg/{subject}/{j}'][:], axis = 1) for j in val_parts])
-        X_test = np.hstack([zscore(f[f'eeg/{subject}/{j}'][:], axis = 1) for j in test_parts])
+        X_train = concatenate_eeg(f, subject, train_parts, fs_in, fs_output, corner_freq)
+        X_val = concatenate_eeg(f, subject, val_parts, fs_in, fs_output, corner_freq)
+        X_test = concatenate_eeg(f, subject, test_parts, fs_in, fs_output, corner_freq)
+
 
         #drop aux channels
         X_train, X_val, X_test = X_train[:31,:], X_val[:31,:], X_test[:31,:]
+        
+        y_train = concatenate_stimulus(f, train_stimuli, fs_in, fs_output, feature_name='attended_env')
+        y_val = concatenate_stimulus(f, val_stimuli, fs_in, fs_output, feature_name='attended_env')
+        y_attended = concatenate_stimulus(f, test_stimuli, fs_in, fs_output, feature_name='attended_env')
+        y_competing = concatenate_stimulus(f, test_stimuli, fs_in, fs_output, feature_name='distractor_env')
 
-        y_train = np.hstack([f[f'stimulus_files/{str(j)}/attended_env'][:] for j in train_stimuli])
-        y_val =  np.hstack([f[f'stimulus_files/{str(j)}/attended_env'][:] for j in val_stimuli])
-        y_attended = np.hstack([f[f'stimulus_files/{str(j)}/attended_env'][:] for j in test_stimuli])
-        y_competing = np.hstack([f[f'stimulus_files/{str(j)}/distractor_env'][:] for j in test_stimuli])
     f.close()
 
     return X_train, X_val, X_test, y_train, y_val, y_attended, y_competing
@@ -82,7 +115,7 @@ def trf_helper(speech_feature, eeg, tmin, tmax, Fs, alpha, null_model = False, n
             # roll the speech feature
             speech_train_null = np.roll(speech_train, offset)
             speech_test, eeg_test = speech_feature[n_train:], eeg[:, n_train:]
-            trf = TRFEstimator(tmin=tmin, tmax=tmax, srate=Fs, alpha=alpha, alpha_feat=False)
+            trf = TRFEstimator(tmin=tmin, tmax=tmax, srate=Fs, alpha=alpha)
             trf.fit(np.expand_dims(speech_train_null, axis=1), eeg_train.T)
             scores_trmp = trf.score(np.expand_dims(speech_test, axis=1), eeg_test.T)
             coefs_tmp = trf.get_coef()[:, 0, :, :].T
@@ -93,7 +126,7 @@ def trf_helper(speech_feature, eeg, tmin, tmax, Fs, alpha, null_model = False, n
     else:
         speech_test, eeg_test = speech_feature[n_train:], eeg[:, n_train:]
 
-        trf = TRFEstimator(tmin=tmin, tmax=tmax, srate=Fs, alpha=alpha, alpha_feat=False)
+        trf = TRFEstimator(tmin=tmin, tmax=tmax, srate=Fs, alpha=alpha)
         trf.fit(np.expand_dims(speech_train, axis=1), eeg_train.T)
 
         scores = trf.score(np.expand_dims(speech_test, axis=1), eeg_test.T)

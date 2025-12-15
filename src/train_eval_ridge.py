@@ -14,15 +14,16 @@ subjects = ["303", "304"]
 
 
 #### Set data parameters #####
-fs = 128 # Hz
+fs_in = 128 # Hz of dataset
+fs_computation = 64 # Hz for model training and evaluation to speed up computation
 corner_freq = [1,8] # Hz
 
 
 ##### Define hyperparameters #####
 start_ms = -500
 end_ms = 500
-start_lag = int(start_ms/1000*fs)
-end_lag = int(end_ms/1000*fs)
+start_lag = int(start_ms/1000*fs_computation)
+end_lag = int(end_ms/1000*fs_computation)
 alpha = np.logspace(-7, 7, 15)
 
 #### Define training, validation and test trials #####
@@ -43,7 +44,10 @@ if __name__ == "__main__":
         train_indices=train_indices,
         val_indices=val_indices,
         test_indices=test_indices,
-        hdf5_path=hdf5_path
+        hdf5_path=hdf5_path,
+        fs_in=fs_in,
+        fs_output=fs_computation,
+        corner_freq=corner_freq
     )
     #### Initialize the model and train ####
     mdl = Ridge(start_lag=start_lag, end_lag=end_lag, alpha=alpha)
