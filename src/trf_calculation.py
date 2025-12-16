@@ -15,17 +15,45 @@ from tqdm import tqdm
 base_dir = git.Repo(os.getcwd(), search_parent_directories=True).working_tree_dir
 hdf5_path = os.path.join(base_dir, 'data/nh_dataset_8Hz.hdf5')
 
+hdf5_path = '/data_nfs/do00noto/semeco_data/data/processed/nh_dataset_1kHz.hdf5'
+
 target_dir = os.path.join(base_dir, 'results/trf')
 if not os.path.exists(target_dir):
     os.makedirs(target_dir)
 
-subjects = ["303", "304"]
+
+"""
+For more entire data analysis, use the following subject lists:
+### NH Subjects:
+subjects_nh = [
+    301, 302, 303, 304, 305, 306, 307, 308, 309, 311, 313, 314, 315, 316, 317, 318, 319,
+    321, 322, 323, 324, 325, 326, 327, 328, 329, 330, 331, 333
+]
+subjects = [str(s) for s in subjects_nh]
+
+#### HI Subjects:
+hi_subjects = [
+    201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217,
+    218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229
+]
+subjects_hi = [str(s) for s in hi_subjects]
+
+#### CI Subjects:
+ci_subjects = [
+    102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 116, 118, 119, 120,
+    121, 122, 123, 124, 125, 127, 128, 130
+]
+subjects_ci = [str(s) for s in ci_subjects]
+"""
+
+subjects = ["313"]
+
 
 trials = list(range(9,21))
 
 tmin = -0.3
 tmax = 0.8
-sfreq_in = 128
+sfreq_in = 1000
 sfreq = 64
 
 downsample_factor = sfreq_in/sfreq

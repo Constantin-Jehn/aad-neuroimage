@@ -117,7 +117,7 @@ def trf_helper(speech_feature, eeg, tmin, tmax, Fs, alpha, null_model = False, n
             speech_test, eeg_test = speech_feature[n_train:], eeg[:, n_train:]
             trf = TRFEstimator(tmin=tmin, tmax=tmax, srate=Fs, alpha=alpha)
             trf.fit(np.expand_dims(speech_train_null, axis=1), eeg_train.T)
-            scores_trmp = trf.score(np.expand_dims(speech_test, axis=1), eeg_test.T)
+            scores_tmp = trf.score(np.expand_dims(speech_test, axis=1), eeg_test.T)
             coefs_tmp = trf.get_coef()[:, 0, :, :].T
             coefs.append(coefs_tmp)
             scores.append(scores_tmp)
@@ -125,6 +125,11 @@ def trf_helper(speech_feature, eeg, tmin, tmax, Fs, alpha, null_model = False, n
         scores = np.array(scores)
     else:
         speech_test, eeg_test = speech_feature[n_train:], eeg[:, n_train:]
+
+        dif_len = np.abs(eeg_test.shape[1] - speech_test.shape[0])
+        if dif_len > 0:
+            assert dif_len < 10, "Length difference too large"
+            eeg_test, speech_test = crop_to_common_length(eeg_test, speech_test)
 
         trf = TRFEstimator(tmin=tmin, tmax=tmax, srate=Fs, alpha=alpha)
         trf.fit(np.expand_dims(speech_train, axis=1), eeg_train.T)
@@ -155,3 +160,10 @@ def find_start_distractor(distr_arr, thres_window = 10):
     k = np.ones(thres_window,dtype=bool)
     starting_index = binary_erosion(m,k,origin=-(thres_window//2)).argmax()
     return starting_index
+
+def crop_to_common_length(eeg, env):
+    print(f'Cropping data to common length. EEG length: {eeg.shape[1]}, Env length: {env.shape[0]}')
+    min_length = min(eeg.shape[1], env.shape[0])
+    eeg_cropped = eeg[:, :min_length]
+    env_cropped = env[:min_length]
+    return eeg_cropped, env_cropped
