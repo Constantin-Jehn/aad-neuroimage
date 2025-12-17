@@ -1,0 +1,17 @@
+# Scientific Computing & Data Handling
+numpy
+scipy
+h5py
+
+# Electrophysiology/Neuroscience
+mne
+mne_icalabel
+spyeeg
+
+# Version Control
+gitpython  
+# Visualization
+matplotlib
+
+# Progress Bar
+tqdm
